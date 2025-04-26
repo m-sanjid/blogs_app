@@ -54,26 +54,26 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
-    const fetchPosts = async () => {
+    async function fetchPosts() {
       try {
-        const response = await fetch("/api/posts")
-        const data = await response.json()
-        setPosts(data)
+        const res = await fetch('/api/posts');
+        if (!res.ok) throw new Error('Failed to fetch');
+        const data = await res.json();
+        setPosts(Array.isArray(data) ? data : []); 
       } catch (error) {
-        console.error("Error fetching posts:", error)
-      } finally {
-        setLoading(false)
+        setPosts([]); 
       }
     }
+    fetchPosts();
+  }, []);
 
-    fetchPosts()
-  }, [])
-
-  const filteredPosts = posts.filter((post) =>
-    post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    post.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  )
+  const filteredPosts = Array.isArray(posts)
+  ? posts.filter((post) =>
+      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
+  : [];
 
   return (
     <div className="min-h-screen">
