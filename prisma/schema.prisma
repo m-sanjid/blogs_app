@@ -1,0 +1,76 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  email         String    @unique
+  password      String
+  avatar        String?
+  bio           String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
+  bookmarks     Bookmark[]
+}
+
+model Post {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  title         String
+  content       String
+  slug          String    @unique
+  coverImage    String?
+  readingTime   Int?
+  tags          String[]
+  authorId      String    @db.ObjectId
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  comments      Comment[]
+  likes         Like[]
+  bookmarks     Bookmark[]
+}
+
+model Comment {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  content       String
+  authorId      String    @db.ObjectId
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId        String    @db.ObjectId
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Like {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  authorId      String    @db.ObjectId
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId        String    @db.ObjectId
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+
+  @@unique([authorId, postId])
+}
+
+model Bookmark {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  authorId      String    @db.ObjectId
+  author        User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId        String    @db.ObjectId
+  post          Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt     DateTime  @default(now())
+
+  @@unique([authorId, postId])
+}
