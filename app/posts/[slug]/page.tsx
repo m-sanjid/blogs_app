@@ -5,12 +5,13 @@ import { useParams } from "next/navigation"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Heart, MessageCircle, Bookmark, Share2, Clock } from "lucide-react"
+import { Heart, MessageCircle, Bookmark, Share2, Clock, AlertCircle } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { useEditor, EditorContent } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
 import Image from "@tiptap/extension-image"
 import Link from "@tiptap/extension-link"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface Post {
   id: string
@@ -26,6 +27,23 @@ interface Post {
     avatar: string | null
   }
   tags: string[]
+}
+
+// Sample post for fallback when API fails
+const samplePost: Post = {
+  id: "sample",
+  title: "Sample Post: Understanding React Hooks",
+  content: "<h2>Introduction to Hooks</h2><p>React Hooks are a powerful feature...</p>",
+  createdAt: "2025-04-25T12:00:00Z",
+  readingTime: 6,
+  likes: 84,
+  comments: 12,
+  coverImage: null,
+  author: {
+    name: "Sample Author",
+    avatar: null
+  },
+  tags: ["Programming", "React", "Web Development"]
 }
 
 const containerVariants = {
@@ -53,6 +71,7 @@ export default function Post() {
   const { slug } = useParams()
   const [post, setPost] = useState<Post | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const editor = useEditor({
     extensions: [StarterKit, Image, Link],
@@ -62,20 +81,54 @@ export default function Post() {
   useEffect(() => {
     const fetchPost = async () => {
       try {
+        setLoading(true)
+        setError(null)
+        
+        if (!slug) {
+          throw new Error("Post ID is missing")
+        }
+        
         const response = await fetch(`/api/posts/${slug}`)
+        
+        if (!response.ok) {
+          throw new Error(`API responded with status: ${response.status}`)
+        }
+        
         const data = await response.json()
+        
+        // Validate the post data
+        if (!data || !data.id || !data.title || !data.author || !data.author.name) {
+          throw new Error("Invalid post data received")
+        }
+        
+        // Ensure author.avatar is null if it doesn't exist
+        if (data.author && data.author.avatar === undefined) {
+          data.author.avatar = null
+        }
+        
         setPost(data)
+        
         if (editor && data?.content) {
           editor.commands.setContent(data.content)
         }
       } catch (error) {
         console.error("Error fetching post:", error)
+        setError("Failed to load post. Using sample data instead.")
+        
+        // Use sample post as fallback
+        setPost(samplePost)
+        
+        if (editor && samplePost.content) {
+          editor.commands.setContent(samplePost.content)
+        }
       } finally {
         setLoading(false)
       }
     }
 
-    fetchPost()
+    if (editor) {
+      fetchPost()
+    }
   }, [slug, editor])
 
   if (loading) {
@@ -91,9 +144,12 @@ export default function Post() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Post Not Found</h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground mb-6">
             The post you're looking for doesn't exist.
           </p>
+          <Button variant="outline" onClick={() => window.history.back()}>
+            Go Back
+          </Button>
         </div>
       </div>
     )
@@ -107,6 +163,13 @@ export default function Post() {
       className="min-h-screen py-12"
     >
       <div className="container mx-auto px-4 max-w-4xl">
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
         {post.coverImage && (
           <motion.div variants={itemVariants} className="mb-8">
             <img
@@ -119,11 +182,15 @@ export default function Post() {
 
         <motion.div variants={itemVariants} className="flex items-center gap-4 mb-8">
           <Avatar className="h-12 w-12">
-            <AvatarImage src={post.author.avatar || ""} alt={post.author.name} />
-            <AvatarFallback>{post.author.name.charAt(0)}</AvatarFallback>
+            {post.author && post.author.avatar ? (
+              <AvatarImage src={post.author.avatar} alt={post.author.name} />
+            ) : null}
+            <AvatarFallback>
+              {post.author && post.author.name ? post.author.name.charAt(0) : '?'}
+            </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{post.author.name}</p>
+            <p className="font-medium">{post.author ? post.author.name : 'Unknown Author'}</p>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>{formatDistanceToNow(new Date(post.createdAt))} ago</span>
               {post.readingTime && (
@@ -141,15 +208,19 @@ export default function Post() {
           {post.title}
         </motion.h1>
 
-        <motion.div variants={itemVariants} className="flex gap-2 mb-8">
-          {post.tags.map((tag) => (
-            <span
-              key={tag}
-              className="text-sm bg-muted hover:bg-muted/80 px-3 py-1 rounded-full"
-            >
-              {tag}
-            </span>
-          ))}
+        <motion.div variants={itemVariants} className="flex flex-wrap gap-2 mb-8">
+          {post.tags && post.tags.length > 0 ? (
+            post.tags.map((tag) => (
+              <span
+                key={tag}
+                className="text-sm bg-muted hover:bg-muted/80 px-3 py-1 rounded-full"
+              >
+                {tag}
+              </span>
+            ))
+          ) : (
+            <span className="text-sm bg-muted px-3 py-1 rounded-full">Uncategorized</span>
+          )}
         </motion.div>
 
         <motion.div variants={itemVariants} className="prose max-w-none mb-8">
@@ -163,11 +234,11 @@ export default function Post() {
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm">
               <Heart className="h-4 w-4 mr-2" />
-              {post.likes}
+              {post.likes || 0}
             </Button>
             <Button variant="ghost" size="sm">
               <MessageCircle className="h-4 w-4 mr-2" />
-              {post.comments}
+              {post.comments || 0}
             </Button>
           </div>
           <div className="flex items-center gap-2">

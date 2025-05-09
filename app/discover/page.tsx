@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, TrendingUp, Clock, BookOpen } from "lucide-react"
+import { Search, TrendingUp } from "lucide-react"
 import PostCard from "@/components/post-card"
 
 interface Post {
@@ -45,9 +45,19 @@ export default function Discover() {
       try {
         const response = await fetch("/api/posts")
         const data = await response.json()
-        setPosts(data)
+        
+        if (Array.isArray(data)) {
+          setPosts(data)
+        } else if (data && typeof data === 'object' && data.error) {
+          console.error("API error:", data.error)
+          setPosts([])
+        } else {
+          console.error("Unexpected API response format:", data)
+          setPosts([])
+        }
       } catch (error) {
         console.error("Error fetching posts:", error)
+        setPosts([])
       } finally {
         setLoading(false)
       }
@@ -56,17 +66,19 @@ export default function Discover() {
     fetchPosts()
   }, [])
 
-  const filteredPosts = posts.filter((post) => {
-    const matchesSearch =
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filteredPosts = Array.isArray(posts) 
+    ? posts.filter((post) => {
+        const matchesSearch =
+          post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          post.tags.some((tag) => tag.toLowerCase().includes(searchQuery.toLowerCase()))
 
-    const matchesTopic =
-      !selectedTopic || post.tags.includes(selectedTopic)
+        const matchesTopic =
+          !selectedTopic || post.tags.includes(selectedTopic)
 
-    return matchesSearch && matchesTopic
-  })
+        return matchesSearch && matchesTopic
+      })
+    : []
 
   return (
     <div className="min-h-screen py-12">
@@ -132,7 +144,7 @@ export default function Discover() {
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto"></div>
               </div>
-            ) : (
+            ) : filteredPosts.length > 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -143,10 +155,14 @@ export default function Discover() {
                   <PostCard key={post.id} post={post} />
                 ))}
               </motion.div>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-muted-foreground">No posts found matching your criteria.</p>
+              </div>
             )}
           </div>
         </div>
       </div>
     </div>
   )
-} 
+}
